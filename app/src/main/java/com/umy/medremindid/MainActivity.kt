@@ -3,45 +3,64 @@ package com.umy.medremindid
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.compose.rememberNavController
+import com.umy.medremindid.di.AppContainer
+import com.umy.medremindid.ui.auth.AuthViewModel
+import com.umy.medremindid.ui.nav.AppNavHost
+import com.umy.medremindid.ui.schedule.MedicationScheduleViewModel
 import com.umy.medremindid.ui.theme.MedRemindIDTheme
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var container: AppContainer
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            MedRemindIDTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+
+        container = AppContainer(applicationContext)
+
+        val authVmFactory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(AuthViewModel::class.java)) {
+                    return AuthViewModel(container.authRepository) as T
                 }
+                throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
-    }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+        val scheduleVmFactory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(MedicationScheduleViewModel::class.java)) {
+                    return MedicationScheduleViewModel(
+                        session = container.session,
+                        repo = container.medicationScheduleRepository
+                    ) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class")
+            }
+        }
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    MedRemindIDTheme {
-        Greeting("Android")
+        setContent {
+            MedRemindIDTheme {
+                val navController = rememberNavController()
+
+                val authViewModel =
+                    androidx.lifecycle.viewmodel.compose.viewModel<AuthViewModel>(factory = authVmFactory)
+
+                val scheduleViewModel =
+                    androidx.lifecycle.viewmodel.compose.viewModel<MedicationScheduleViewModel>(factory = scheduleVmFactory)
+
+                AppNavHost(
+                    navController = navController,
+                    session = container.session,
+                    authViewModel = authViewModel,
+                    scheduleViewModel = scheduleViewModel
+                )
+            }
+        }
     }
 }
