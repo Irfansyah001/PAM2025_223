@@ -49,10 +49,8 @@ fun ScheduleListScreen(
         )
     }
 
-    // Snack message sederhana
     state.message?.let { msg ->
         LaunchedEffect(msg) {
-            // auto-clear setelah tampil
             viewModel.clearListMessage()
         }
     }

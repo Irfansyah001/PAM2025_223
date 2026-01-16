@@ -40,7 +40,6 @@ class MedicationScheduleRepository(
         } else {
             entity.copy(
                 userId = userId,
-                // createdAt dipertahankan dari entity yang dipass dari UI/edit
                 updatedAt = now
             )
         }

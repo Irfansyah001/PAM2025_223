@@ -46,7 +46,6 @@ interface MedicationScheduleDao {
     """)
     fun observeSearch(userId: Long, query: String): Flow<List<MedicationScheduleEntity>>
 
-    // Berguna untuk cek bentrok waktu (opsional), tetap relevan untuk validasi jadwal sederhana
     @Query("""
         SELECT COUNT(*) FROM medication_schedules
         WHERE userId = :userId

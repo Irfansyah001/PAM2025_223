@@ -19,10 +19,8 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    // tampilkan message sebagai snackbar sederhana
     state.message?.let { msg ->
         LaunchedEffect(msg) {
-            // clear setelah ditampilkan agar tidak muncul ulang
             viewModel.clearMessage()
         }
     }

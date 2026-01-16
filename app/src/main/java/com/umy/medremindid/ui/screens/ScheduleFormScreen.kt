@@ -21,7 +21,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 @Composable
 fun ScheduleFormScreen(
     viewModel: MedicationScheduleViewModel,
-    scheduleId: Long?, // null = create, non-null = edit
+    scheduleId: Long?,
     onBack: () -> Unit,
     onSaved: () -> Unit
 ) {

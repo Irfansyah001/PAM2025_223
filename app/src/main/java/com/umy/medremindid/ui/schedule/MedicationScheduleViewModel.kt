@@ -38,12 +38,9 @@ class MedicationScheduleViewModel(
     private val repo: MedicationScheduleRepository
 ) : ViewModel() {
 
-    // ---- User session (wajib ada) ----
-    // Pastikan SessionManager Anda punya userIdFlow: Flow<Long?>
     private val userIdFlow: Flow<Long> =
         session.userIdFlow.filterNotNull()
 
-    // ---- List state ----
     private val _listState = MutableStateFlow(ScheduleListUiState())
     val listState: StateFlow<ScheduleListUiState> = _listState.asStateFlow()
 
@@ -106,7 +103,6 @@ class MedicationScheduleViewModel(
         }
     }
 
-    // ---- Form state ----
     private val _formState = MutableStateFlow(ScheduleFormState())
     val formState: StateFlow<ScheduleFormState> = _formState.asStateFlow()
 
@@ -174,7 +170,6 @@ class MedicationScheduleViewModel(
             val start = st.startDate
             val end = st.endDate
 
-            // Validasi minimal (SRS-safe)
             if (medicineName.isBlank()) {
                 _formState.update { it.copy(error = "Nama obat wajib diisi") }
                 return@launch
