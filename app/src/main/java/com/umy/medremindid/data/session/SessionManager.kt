@@ -26,6 +26,8 @@ class SessionManager(private val context: Context) {
             if (!loggedIn) null else prefs[KEY_CURRENT_USER_ID]
         }
 
+    val userIdFlow: Flow<Long?> = currentUserIdFlow
+
     suspend fun setLoggedIn(userId: Long) {
         context.dataStore.edit { prefs ->
             prefs[KEY_IS_LOGGED_IN] = true
