@@ -17,8 +17,8 @@ import com.umy.medremindid.data.local.entity.*
         AdherenceLogEntity::class,
         SymptomNoteEntity::class
     ],
-    version = 1,
-    exportSchema = true
+    version = 2,
+    exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
