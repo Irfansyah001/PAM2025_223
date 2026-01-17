@@ -10,6 +10,7 @@ import com.umy.medremindid.data.local.entity.MedicationScheduleEntity
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.time.LocalTime
+import java.time.LocalDate
 
 @Dao
 interface MedicationScheduleDao {
@@ -27,6 +28,15 @@ interface MedicationScheduleDao {
         ORDER BY timeOfDay ASC
     """)
     fun observeActiveByUser(userId: Long): Flow<List<MedicationScheduleEntity>>
+
+    @Query("""
+    SELECT * FROM medication_schedules
+    WHERE isActive = 1
+      AND startDate <= :today
+      AND (endDate IS NULL OR endDate >= :today)
+    ORDER BY timeOfDay ASC
+    """)
+    suspend fun getAllActive(today: LocalDate = LocalDate.now()): List<MedicationScheduleEntity>
 
     @Query("""
         SELECT * FROM medication_schedules
