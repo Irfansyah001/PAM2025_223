@@ -3,12 +3,16 @@ package com.umy.medremindid
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.rememberNavController
 import com.umy.medremindid.di.AppContainer
+import com.umy.medremindid.ui.adherence.AdherenceViewModel
 import com.umy.medremindid.ui.auth.AuthViewModel
 import com.umy.medremindid.ui.nav.AppNavHost
+import com.umy.medremindid.ui.permissions.PermissionGate
 import com.umy.medremindid.ui.schedule.MedicationScheduleViewModel
 import com.umy.medremindid.ui.theme.MedRemindIDTheme
 
@@ -36,8 +40,22 @@ class MainActivity : ComponentActivity() {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 if (modelClass.isAssignableFrom(MedicationScheduleViewModel::class.java)) {
                     return MedicationScheduleViewModel(
+                        appContext = applicationContext,
                         session = container.session,
                         repo = container.medicationScheduleRepository
+                    ) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class")
+            }
+        }
+
+        val adherenceVmFactory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(AdherenceViewModel::class.java)) {
+                    return AdherenceViewModel(
+                        session = container.session,
+                        repo = container.adherenceLogRepository
                     ) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel class")
@@ -54,12 +72,20 @@ class MainActivity : ComponentActivity() {
                 val scheduleViewModel =
                     androidx.lifecycle.viewmodel.compose.viewModel<MedicationScheduleViewModel>(factory = scheduleVmFactory)
 
-                AppNavHost(
-                    navController = navController,
-                    session = container.session,
-                    authViewModel = authViewModel,
-                    scheduleViewModel = scheduleViewModel
-                )
+                val adherenceViewModel =
+                    androidx.lifecycle.viewmodel.compose.viewModel<AdherenceViewModel>(factory = adherenceVmFactory)
+
+                val loggedIn by container.session.isLoggedInFlow.collectAsState(initial = false)
+
+                PermissionGate(enabled = loggedIn) {
+                    AppNavHost(
+                        navController = navController,
+                        session = container.session,
+                        authViewModel = authViewModel,
+                        scheduleViewModel = scheduleViewModel,
+                        adherenceViewModel = adherenceViewModel
+                    )
+                }
             }
         }
     }
