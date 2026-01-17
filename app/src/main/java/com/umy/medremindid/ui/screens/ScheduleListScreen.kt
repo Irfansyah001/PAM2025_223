@@ -1,11 +1,39 @@
 package com.umy.medremindid.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -13,8 +41,6 @@ import com.umy.medremindid.data.local.entity.MedicationScheduleEntity
 import com.umy.medremindid.ui.schedule.MedicationScheduleViewModel
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,13 +50,18 @@ fun ScheduleListScreen(
     onAdd: () -> Unit,
     onEdit: (Long) -> Unit
 ) {
-    val state by viewModel.listState.collectAsState()
-    val schedules by viewModel.schedulesFlow.collectAsState()
+    val query by viewModel.searchQueryState.collectAsState()
+    val schedules by viewModel.schedules.collectAsState()
 
+    var activeOnly by rememberSaveable { mutableStateOf(false) }
     var confirmDeleteId by remember { mutableStateOf<Long?>(null) }
 
     val timeFmt = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
     val dateFmt = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+
+    val shown = remember(schedules, activeOnly) {
+        if (!activeOnly) schedules else schedules.filter { it.isActive }
+    }
 
     if (confirmDeleteId != null) {
         AlertDialog(
@@ -38,21 +69,18 @@ fun ScheduleListScreen(
             title = { Text("Hapus Jadwal") },
             text = { Text("Apakah Anda yakin ingin menghapus jadwal ini?") },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.delete(confirmDeleteId!!)
-                    confirmDeleteId = null
-                }) { Text("Hapus") }
+                TextButton(
+                    onClick = {
+                        val id = confirmDeleteId ?: return@TextButton
+                        viewModel.deleteSchedule(id)
+                        confirmDeleteId = null
+                    }
+                ) { Text("Hapus") }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDeleteId = null }) { Text("Batal") }
             }
         )
-    }
-
-    state.message?.let { msg ->
-        LaunchedEffect(msg) {
-            viewModel.clearListMessage()
-        }
     }
 
     Scaffold(
@@ -65,7 +93,7 @@ fun ScheduleListScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = onAdd) { Text("Tambah") }
+                    Button(onClick = onAdd) { Text("Tambah") }
                 }
             )
         }
@@ -74,53 +102,43 @@ fun ScheduleListScreen(
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
-                .fillMaxSize()
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedTextField(
-                value = state.query,
-                onValueChange = viewModel::setQuery,
+                value = query,
+                onValueChange = viewModel::onSearchChange,
                 label = { Text("Cari (nama obat / dosis)") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
-
-            Spacer(Modifier.height(10.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Switch(
-                    checked = state.activeOnly,
-                    onCheckedChange = viewModel::setActiveOnly
+                    checked = activeOnly,
+                    onCheckedChange = { activeOnly = it }
                 )
                 Spacer(Modifier.width(8.dp))
                 Text("Tampilkan yang aktif saja")
             }
 
-            Spacer(Modifier.height(12.dp))
-
-            if (state.message != null) {
-                Text(
-                    text = state.message ?: "",
-                    color = MaterialTheme.colorScheme.error
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-
-            if (schedules.isEmpty()) {
+            if (shown.isEmpty()) {
                 Text("Belum ada jadwal. Tekan 'Tambah' untuk membuat jadwal.")
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(schedules) { item ->
+                    items(shown) { item ->
                         ScheduleItemCard(
                             item = item,
                             timeFmt = timeFmt,
                             dateFmt = dateFmt,
                             onEdit = { onEdit(item.scheduleId) },
-                            onToggleActive = { active -> viewModel.toggleActive(item.scheduleId, active) },
+                            onToggleActive = { active -> viewModel.setActive(item.scheduleId, active) },
                             onDelete = { confirmDeleteId = item.scheduleId }
                         )
                     }
