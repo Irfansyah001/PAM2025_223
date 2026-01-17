@@ -20,9 +20,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -37,26 +36,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
 fun PermissionGate(
     enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    if (!enabled) {
-        content()
-        return
-    }
-
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val activity = remember(context) { context.findActivity() }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     var skipped by rememberSaveable { mutableStateOf(false) }
     var notifRequestedOnce by rememberSaveable { mutableStateOf(false) }
@@ -94,7 +88,7 @@ fun PermissionGate(
         }
     }
 
-    val shouldShowGate = !skipped && (!notifGranted || !exactAlarmGranted)
+    val shouldShowGate = enabled && !skipped && (!notifGranted || !exactAlarmGranted)
 
     val notifLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -126,11 +120,11 @@ fun PermissionGate(
                 style = MaterialTheme.typography.headlineSmall
             )
             Text(
-                text = "Agar pengingat obat berjalan konsisten, aplikasi membutuhkan izin notifikasi dan akses alarm tepat waktu (exact alarms). Anda dapat mengaktifkan sekarang atau lanjut tanpa izin (fitur pengingat bisa kurang optimal).",
+                text = "Agar pengingat berjalan konsisten, aplikasi membutuhkan izin notifikasi dan akses alarm tepat waktu (exact alarms). Anda bisa mengaktifkan sekarang atau lanjut tanpa izin (fitur pengingat bisa kurang optimal).",
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            Divider()
+            HorizontalDivider()
 
             PermissionRow(
                 title = "Notifikasi",
@@ -143,17 +137,13 @@ fun PermissionGate(
                     notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 },
                 secondaryButtonText = "Buka Pengaturan Aplikasi",
-                secondaryEnabled = !notifGranted && isNotifPermanentlyDenied(
-                    activity = activity,
-                    requestedOnce = notifRequestedOnce,
-                    granted = notifGranted
-                ),
+                secondaryEnabled = !notifGranted && isNotifPermanentlyDenied(activity, notifRequestedOnce, notifGranted),
                 onSecondaryClick = {
                     settingsLauncher.launch(openAppDetailsSettingsIntent(context))
                 }
             )
 
-            Divider()
+            HorizontalDivider()
 
             PermissionRow(
                 title = "Exact Alarm (Alarm & reminders)",
@@ -288,10 +278,7 @@ private fun isNotifPermanentlyDenied(
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
     if (!requestedOnce) return false
     if (activity == null) return false
-    return !ActivityCompat.shouldShowRequestPermissionRationale(
-        activity,
-        Manifest.permission.POST_NOTIFICATIONS
-    )
+    return !ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS)
 }
 
 private tailrec fun Context.findActivity(): Activity? {
