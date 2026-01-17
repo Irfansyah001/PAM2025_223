@@ -1,7 +1,7 @@
 package com.umy.medremindid.reminder
 
 object ReminderConstants {
-    const val CHANNEL_ID_REMINDERS = "medremind_reminders"
+    const val CHANNEL_ID_BASE = "medremind_reminders"
     const val CHANNEL_NAME_REMINDERS = "Medication Reminders"
 
     const val ACTION_REMIND = "com.umy.medremindid.ACTION_REMIND"
@@ -21,4 +21,10 @@ object ReminderConstants {
 
     fun missedWorkTag(userId: Long, scheduleId: Long): String =
         "missed_tag_${userId}_${scheduleId}"
+
+    fun channelId(allowVibration: Boolean, ringtoneUri: String?): String {
+        val vib = if (allowVibration) "vib" else "novib"
+        val soundKey = ringtoneUri?.hashCode()?.toString() ?: "default"
+        return "${CHANNEL_ID_BASE}_${vib}_$soundKey"
+    }
 }
