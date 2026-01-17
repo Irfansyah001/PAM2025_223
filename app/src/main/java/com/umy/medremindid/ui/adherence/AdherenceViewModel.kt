@@ -1,123 +1,135 @@
 package com.umy.medremindid.ui.adherence
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import android.content.Context
+import com.umy.medremindid.data.local.dao.AdherenceLogDao
 import com.umy.medremindid.data.local.entity.AdherenceStatus
-import com.umy.medremindid.data.local.model.AdherenceLogWithSchedule
 import com.umy.medremindid.data.repository.AdherenceLogRepository
 import com.umy.medremindid.data.session.SessionManager
+import com.umy.medremindid.ui.report.ReportExporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-enum class AdherencePeriod {
-    TODAY, LAST_7_DAYS, LAST_30_DAYS, ALL
-}
+enum class PeriodFilter { TODAY, DAYS_7, DAYS_30, ALL }
 
-data class AdherenceSummaryState(
-    val period: AdherencePeriod = AdherencePeriod.TODAY,
+data class AdherenceSummary(
+    val total: Int = 0,
     val taken: Int = 0,
     val skipped: Int = 0,
     val missed: Int = 0,
-    val total: Int = 0,
-    val adherenceRate: Double = 0.0,
-    val isLoading: Boolean = true,
-    val errorMessage: String? = null
+    val adherenceRate: Int = 0,
+    val label: String = "TODAY"
+)
+
+data class DateRange(
+    val from: Instant,
+    val to: Instant,
+    val label: String
 )
 
 class AdherenceViewModel(
+    private val appContext: Context,
     private val session: SessionManager,
     private val repo: AdherenceLogRepository
 ) : ViewModel() {
 
     private val userIdFlow = session.userIdFlow.filterNotNull()
 
-    private val _period = MutableStateFlow(AdherencePeriod.TODAY)
-    val period: StateFlow<AdherencePeriod> = _period.asStateFlow()
+    private val _filter = MutableStateFlow(PeriodFilter.TODAY)
+    val filter: StateFlow<PeriodFilter> = _filter.asStateFlow()
 
-    val history: StateFlow<List<AdherenceLogWithSchedule>> =
-        userIdFlow.flatMapLatest { userId ->
-            _period.flatMapLatest { p ->
-                val (from, to) = computeRange(p)
-                if (p == AdherencePeriod.ALL) {
-                    repo.observeByUserWithSchedule(userId)
-                } else {
-                    repo.observeByPlannedRangeWithSchedule(userId, from, to)
+    val range: StateFlow<DateRange> =
+        _filter.map { toRange(it) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), toRange(PeriodFilter.TODAY))
+
+    val logs: StateFlow<List<AdherenceLogDao.AdherenceLogRow>> =
+        combine(userIdFlow, range) { uid, r -> uid to r }
+            .flatMapLatest { (uid, r) -> repo.observeRowsInRange(uid, r.from, r.to) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val summary: StateFlow<AdherenceSummary> =
+        combine(filter, logs) { f, list ->
+            val total = list.size
+            val taken = list.count { it.status == AdherenceStatus.TAKEN }
+            val skipped = list.count { it.status == AdherenceStatus.SKIPPED }
+            val missed = list.count { it.status == AdherenceStatus.MISSED }
+            val rate = if (total == 0) 0 else ((taken.toDouble() / total.toDouble()) * 100.0).toInt()
+            AdherenceSummary(
+                total = total,
+                taken = taken,
+                skipped = skipped,
+                missed = missed,
+                adherenceRate = rate,
+                label = when (f) {
+                    PeriodFilter.TODAY -> "TODAY"
+                    PeriodFilter.DAYS_7 -> "7 DAYS"
+                    PeriodFilter.DAYS_30 -> "30 DAYS"
+                    PeriodFilter.ALL -> "ALL"
                 }
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    private val _summary = MutableStateFlow(AdherenceSummaryState())
-    val summary: StateFlow<AdherenceSummaryState> = _summary.asStateFlow()
-
-    init {
-        refreshSummary()
-    }
-
-    fun setPeriod(p: AdherencePeriod) {
-        _period.value = p
-        refreshSummary()
-    }
-
-    fun refreshSummary() {
-        viewModelScope.launch {
-            _summary.value = _summary.value.copy(
-                period = _period.value,
-                isLoading = true,
-                errorMessage = null
             )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AdherenceSummary())
 
+    fun setFilter(value: PeriodFilter) {
+        _filter.value = value
+    }
+
+    fun buildShareText(): String {
+        val s = summary.value
+        return buildString {
+            appendLine("Laporan Kepatuhan MedRemindID")
+            appendLine("Periode: ${s.label}")
+            appendLine("Total log: ${s.total}")
+            appendLine("Taken: ${s.taken}")
+            appendLine("Skipped: ${s.skipped}")
+            appendLine("Missed: ${s.missed}")
+            appendLine("Adherence Rate: ${s.adherenceRate}%")
+        }
+    }
+
+    fun exportCsv(onReady: (uri: android.net.Uri) -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
             try {
-                val userId = userIdFlow.stateIn(viewModelScope).value ?: return@launch
-                val (from, to) = computeRange(_period.value)
-
-                val taken = repo.countByStatusInRange(userId, AdherenceStatus.TAKEN, from, to)
-                val skipped = repo.countByStatusInRange(userId, AdherenceStatus.SKIPPED, from, to)
-                val missed = repo.countByStatusInRange(userId, AdherenceStatus.MISSED, from, to)
-
-                val total = taken + skipped + missed
-                val rate = if (total <= 0) 0.0 else (taken.toDouble() / total.toDouble())
-
-                _summary.value = AdherenceSummaryState(
-                    period = _period.value,
-                    taken = taken,
-                    skipped = skipped,
-                    missed = missed,
-                    total = total,
-                    adherenceRate = rate,
-                    isLoading = false,
-                    errorMessage = null
-                )
+                val uid = userIdFlow.first()
+                val r = range.value
+                val rows = repo.exportRowsInRange(uid, r.from, r.to)
+                val uri = ReportExporter.exportCsv(appContext, rows)
+                onReady(uri)
             } catch (e: Exception) {
-                _summary.value = _summary.value.copy(
-                    isLoading = false,
-                    errorMessage = e.message ?: "Gagal memuat ringkasan."
-                )
+                onError(e.message ?: "Export gagal")
             }
         }
     }
 
-    private fun computeRange(p: AdherencePeriod): Pair<Instant, Instant> {
+    private fun toRange(filter: PeriodFilter): DateRange {
         val zone = ZoneId.systemDefault()
-        val today = LocalDate.now()
-
-        val startDate = when (p) {
-            AdherencePeriod.TODAY -> today
-            AdherencePeriod.LAST_7_DAYS -> today.minusDays(6)
-            AdherencePeriod.LAST_30_DAYS -> today.minusDays(29)
-            AdherencePeriod.ALL -> LocalDate.of(1970, 1, 1)
+        val today = LocalDate.now(zone)
+        val start = when (filter) {
+            PeriodFilter.TODAY -> today
+            PeriodFilter.DAYS_7 -> today.minusDays(6)
+            PeriodFilter.DAYS_30 -> today.minusDays(29)
+            PeriodFilter.ALL -> LocalDate.of(1970, 1, 1)
         }
-
-        val from = startDate.atStartOfDay(zone).toInstant()
+        val from = start.atStartOfDay(zone).toInstant()
         val to = today.plusDays(1).atStartOfDay(zone).toInstant()
-        return from to to
+        val label = when (filter) {
+            PeriodFilter.TODAY -> "TODAY"
+            PeriodFilter.DAYS_7 -> "7 DAYS"
+            PeriodFilter.DAYS_30 -> "30 DAYS"
+            PeriodFilter.ALL -> "ALL"
+        }
+        return DateRange(from = from, to = to, label = label)
     }
 }

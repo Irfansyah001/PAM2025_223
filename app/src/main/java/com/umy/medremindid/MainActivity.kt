@@ -14,6 +14,8 @@ import com.umy.medremindid.ui.auth.AuthViewModel
 import com.umy.medremindid.ui.nav.AppNavHost
 import com.umy.medremindid.ui.permissions.PermissionGate
 import com.umy.medremindid.ui.schedule.MedicationScheduleViewModel
+import com.umy.medremindid.ui.settings.NotificationSettingsViewModel
+import com.umy.medremindid.ui.symptom.SymptomNoteViewModel
 import com.umy.medremindid.ui.theme.MedRemindIDTheme
 
 class MainActivity : ComponentActivity() {
@@ -54,8 +56,36 @@ class MainActivity : ComponentActivity() {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 if (modelClass.isAssignableFrom(AdherenceViewModel::class.java)) {
                     return AdherenceViewModel(
+                        appContext = applicationContext,
                         session = container.session,
                         repo = container.adherenceLogRepository
+                    ) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class")
+            }
+        }
+
+        val symptomVmFactory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(SymptomNoteViewModel::class.java)) {
+                    return SymptomNoteViewModel(
+                        session = container.session,
+                        symptomRepo = container.symptomNoteRepository,
+                        scheduleRepo = container.medicationScheduleRepository
+                    ) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class")
+            }
+        }
+
+        val notifVmFactory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(NotificationSettingsViewModel::class.java)) {
+                    return NotificationSettingsViewModel(
+                        session = container.session,
+                        repo = container.notificationPreferenceRepository
                     ) as T
                 }
                 throw IllegalArgumentException("Unknown ViewModel class")
@@ -75,6 +105,12 @@ class MainActivity : ComponentActivity() {
                 val adherenceViewModel =
                     androidx.lifecycle.viewmodel.compose.viewModel<AdherenceViewModel>(factory = adherenceVmFactory)
 
+                val symptomViewModel =
+                    androidx.lifecycle.viewmodel.compose.viewModel<SymptomNoteViewModel>(factory = symptomVmFactory)
+
+                val notifSettingsViewModel =
+                    androidx.lifecycle.viewmodel.compose.viewModel<NotificationSettingsViewModel>(factory = notifVmFactory)
+
                 val loggedIn by container.session.isLoggedInFlow.collectAsState(initial = false)
 
                 PermissionGate(enabled = loggedIn) {
@@ -83,7 +119,9 @@ class MainActivity : ComponentActivity() {
                         session = container.session,
                         authViewModel = authViewModel,
                         scheduleViewModel = scheduleViewModel,
-                        adherenceViewModel = adherenceViewModel
+                        adherenceViewModel = adherenceViewModel,
+                        symptomViewModel = symptomViewModel,
+                        notifSettingsViewModel = notifSettingsViewModel
                     )
                 }
             }

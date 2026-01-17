@@ -21,13 +21,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,73 +35,65 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
 fun PermissionGate(
-    enabled: Boolean = true,
+    enabled: Boolean,
     content: @Composable () -> Unit
 ) {
-    val context = LocalContext.current
+    if (!enabled) {
+        content()
+        return
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
     val activity = remember(context) { context.findActivity() }
-    val lifecycleOwner = LocalLifecycleOwner.current
 
     var skipped by rememberSaveable { mutableStateOf(false) }
     var notifRequestedOnce by rememberSaveable { mutableStateOf(false) }
-    var refreshTick by rememberSaveable { mutableStateOf(0) }
 
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                refreshTick += 1
+    val notifGranted by remember {
+        derivedStateOf {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
             }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val notifGranted = run {
-        refreshTick
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
+    val exactAlarmGranted by remember {
+        derivedStateOf {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                am.canScheduleExactAlarms()
+            } else {
+                true
+            }
         }
     }
 
-    val exactAlarmGranted = run {
-        refreshTick
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            am.canScheduleExactAlarms()
-        } else {
-            true
+    val shouldShowGate by remember {
+        derivedStateOf {
+            if (skipped) false else (!notifGranted || !exactAlarmGranted)
         }
     }
-
-    val shouldShowGate = enabled && !skipped && (!notifGranted || !exactAlarmGranted)
 
     val notifLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { _ ->
         notifRequestedOnce = true
-        refreshTick += 1
     }
 
     val settingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
-    ) {
-        refreshTick += 1
-    }
+    ) { }
 
     if (!shouldShowGate) {
         content()
@@ -120,11 +112,11 @@ fun PermissionGate(
                 style = MaterialTheme.typography.headlineSmall
             )
             Text(
-                text = "Agar pengingat berjalan konsisten, aplikasi membutuhkan izin notifikasi dan akses alarm tepat waktu (exact alarms). Anda bisa mengaktifkan sekarang atau lanjut tanpa izin (fitur pengingat bisa kurang optimal).",
+                text = "Agar pengingat obat berjalan konsisten, aplikasi membutuhkan izin notifikasi dan akses alarm tepat waktu (exact alarms). Anda dapat mengaktifkan sekarang atau lanjut tanpa izin (fitur pengingat bisa kurang optimal).",
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            HorizontalDivider()
+            Divider()
 
             PermissionRow(
                 title = "Notifikasi",
@@ -143,7 +135,7 @@ fun PermissionGate(
                 }
             )
 
-            HorizontalDivider()
+            Divider()
 
             PermissionRow(
                 title = "Exact Alarm (Alarm & reminders)",

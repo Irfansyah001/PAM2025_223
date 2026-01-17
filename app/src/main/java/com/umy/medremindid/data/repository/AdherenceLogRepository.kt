@@ -3,7 +3,6 @@ package com.umy.medremindid.data.repository
 import com.umy.medremindid.data.local.dao.AdherenceLogDao
 import com.umy.medremindid.data.local.entity.AdherenceLogEntity
 import com.umy.medremindid.data.local.entity.AdherenceStatus
-import com.umy.medremindid.data.local.model.AdherenceLogWithSchedule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -12,6 +11,7 @@ import java.time.Instant
 class AdherenceLogRepository(
     private val dao: AdherenceLogDao
 ) {
+
     fun observeByUser(userId: Long): Flow<List<AdherenceLogEntity>> =
         dao.observeByUser(userId)
 
@@ -25,17 +25,20 @@ class AdherenceLogRepository(
     ): Flow<List<AdherenceLogEntity>> =
         dao.observeByPlannedRange(userId, fromInclusive, toExclusive)
 
-    // ===== BARU =====
-    fun observeByUserWithSchedule(userId: Long): Flow<List<AdherenceLogWithSchedule>> =
-        dao.observeByUserWithSchedule(userId)
-
-    fun observeByPlannedRangeWithSchedule(
+    fun observeRowsInRange(
         userId: Long,
         fromInclusive: Instant,
         toExclusive: Instant
-    ): Flow<List<AdherenceLogWithSchedule>> =
-        dao.observeByPlannedRangeWithSchedule(userId, fromInclusive, toExclusive)
-    // ================
+    ): Flow<List<AdherenceLogDao.AdherenceLogRow>> =
+        dao.observeRowsInRange(userId, fromInclusive, toExclusive)
+
+    suspend fun exportRowsInRange(
+        userId: Long,
+        fromInclusive: Instant,
+        toExclusive: Instant
+    ): List<AdherenceLogDao.AdherenceLogRow> = withContext(Dispatchers.IO) {
+        dao.exportRowsInRange(userId, fromInclusive, toExclusive)
+    }
 
     suspend fun getByUnique(
         userId: Long,
@@ -169,14 +172,25 @@ class AdherenceLogRepository(
         scheduleId: Long,
         plannedTime: Instant,
         note: String? = null
-    ) = recordTaken(userId, scheduleId, plannedTime, Instant.now(), note)
+    ) = recordTaken(
+        userId = userId,
+        scheduleId = scheduleId,
+        plannedTime = plannedTime,
+        takenTime = Instant.now(),
+        note = note
+    )
 
     suspend fun markSkipped(
         userId: Long,
         scheduleId: Long,
         plannedTime: Instant,
         note: String? = null
-    ) = recordSkipped(userId, scheduleId, plannedTime, note)
+    ) = recordSkipped(
+        userId = userId,
+        scheduleId = scheduleId,
+        plannedTime = plannedTime,
+        note = note
+    )
 
     suspend fun deleteById(userId: Long, logId: Long) = withContext(Dispatchers.IO) {
         dao.deleteById(userId, logId)

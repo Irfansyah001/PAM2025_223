@@ -34,9 +34,10 @@ data class SymptomNoteEntity(
     val noteId: Long = 0L,
     val userId: Long,
     val scheduleId: Long? = null,
-    val noteDate: LocalDate,
     val title: String,
     val description: String,
-    val severity: Int,
-    val createdAt: Instant = Instant.now()
+    val noteDate: LocalDate,
+    val severity: Int? = null,
+    val createdAt: Instant = Instant.now(),
+    val updatedAt: Instant = Instant.now()
 )

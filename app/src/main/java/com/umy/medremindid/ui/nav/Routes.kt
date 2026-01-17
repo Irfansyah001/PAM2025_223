@@ -8,11 +8,17 @@ object Routes {
 
     const val SCHEDULE_LIST = "schedule_list"
     const val SCHEDULE_FORM_ROUTE = "schedule_form?sid={sid}"
+    fun scheduleFormRoute(scheduleId: Long? = null): String =
+        "schedule_form?sid=${scheduleId ?: -1L}"
+
     const val ADHERENCE_HISTORY = "adherence_history"
     const val ADHERENCE_SUMMARY = "adherence_summary"
-    const val NOTIF_PREFS = "notif_prefs"
+    const val REPORT = "report"
 
-    fun scheduleFormRoute(scheduleId: Long? = null): String {
-        return "schedule_form?sid=${scheduleId ?: -1L}"
-    }
+    const val SYMPTOM_LIST = "symptom_list"
+    const val SYMPTOM_FORM_ROUTE = "symptom_form?nid={nid}"
+    fun symptomFormRoute(noteId: Long? = null): String =
+        "symptom_form?nid=${noteId ?: -1L}"
+
+    const val NOTIF_SETTINGS = "notif_settings"
 }

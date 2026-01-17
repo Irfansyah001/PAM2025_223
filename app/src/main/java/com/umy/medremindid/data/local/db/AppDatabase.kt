@@ -6,8 +6,16 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.umy.medremindid.data.local.converter.Converters
-import com.umy.medremindid.data.local.dao.*
-import com.umy.medremindid.data.local.entity.*
+import com.umy.medremindid.data.local.dao.AdherenceLogDao
+import com.umy.medremindid.data.local.dao.MedicationScheduleDao
+import com.umy.medremindid.data.local.dao.NotificationPreferenceDao
+import com.umy.medremindid.data.local.dao.SymptomNoteDao
+import com.umy.medremindid.data.local.dao.UserDao
+import com.umy.medremindid.data.local.entity.AdherenceLogEntity
+import com.umy.medremindid.data.local.entity.MedicationScheduleEntity
+import com.umy.medremindid.data.local.entity.NotificationPreferenceEntity
+import com.umy.medremindid.data.local.entity.SymptomNoteEntity
+import com.umy.medremindid.data.local.entity.UserEntity
 
 @Database(
     entities = [
@@ -17,7 +25,7 @@ import com.umy.medremindid.data.local.entity.*
         AdherenceLogEntity::class,
         SymptomNoteEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

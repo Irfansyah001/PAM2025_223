@@ -13,14 +13,20 @@ import com.umy.medremindid.data.session.SessionManager
 import com.umy.medremindid.ui.adherence.AdherenceViewModel
 import com.umy.medremindid.ui.auth.AuthViewModel
 import com.umy.medremindid.ui.schedule.MedicationScheduleViewModel
+import com.umy.medremindid.ui.settings.NotificationSettingsViewModel
+import com.umy.medremindid.ui.symptom.SymptomNoteViewModel
 import com.umy.medremindid.ui.screens.AdherenceHistoryScreen
 import com.umy.medremindid.ui.screens.AdherenceSummaryScreen
 import com.umy.medremindid.ui.screens.HomeScreen
 import com.umy.medremindid.ui.screens.LoginScreen
+import com.umy.medremindid.ui.screens.NotificationSettingsScreen
 import com.umy.medremindid.ui.screens.RegisterScreen
+import com.umy.medremindid.ui.screens.ReportScreen
 import com.umy.medremindid.ui.screens.ScheduleFormScreen
 import com.umy.medremindid.ui.screens.ScheduleListScreen
 import com.umy.medremindid.ui.screens.SplashScreen
+import com.umy.medremindid.ui.screens.SymptomFormScreen
+import com.umy.medremindid.ui.screens.SymptomListScreen
 
 @Composable
 fun AppNavHost(
@@ -28,7 +34,9 @@ fun AppNavHost(
     session: SessionManager,
     authViewModel: AuthViewModel,
     scheduleViewModel: MedicationScheduleViewModel,
-    adherenceViewModel: AdherenceViewModel
+    adherenceViewModel: AdherenceViewModel,
+    symptomViewModel: SymptomNoteViewModel,
+    notifSettingsViewModel: NotificationSettingsViewModel
 ) {
     NavHost(
         navController = navController,
@@ -75,6 +83,9 @@ fun AppNavHost(
                 onGoSchedules = { navController.navigate(Routes.SCHEDULE_LIST) },
                 onGoAdherenceHistory = { navController.navigate(Routes.ADHERENCE_HISTORY) },
                 onGoAdherenceSummary = { navController.navigate(Routes.ADHERENCE_SUMMARY) },
+                onGoSymptoms = { navController.navigate(Routes.SYMPTOM_LIST) },
+                onGoNotifSettings = { navController.navigate(Routes.NOTIF_SETTINGS) },
+                onGoReport = { navController.navigate(Routes.REPORT) },
                 onLogout = {
                     authViewModel.logout {
                         navController.navigate(Routes.LOGIN) {
@@ -110,7 +121,7 @@ fun AppNavHost(
                 viewModel = scheduleViewModel,
                 scheduleId = scheduleId,
                 onBack = { navController.popBackStack() },
-                onSaved = { navController.popBackStack(Routes.SCHEDULE_LIST, false) }
+                onSaved = { navController.popBackStack() }
             )
         }
 
@@ -124,6 +135,49 @@ fun AppNavHost(
         composable(Routes.ADHERENCE_SUMMARY) {
             AdherenceSummaryScreen(
                 viewModel = adherenceViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.REPORT) {
+            ReportScreen(
+                viewModel = adherenceViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.SYMPTOM_LIST) {
+            SymptomListScreen(
+                viewModel = symptomViewModel,
+                onBack = { navController.popBackStack() },
+                onAdd = { navController.navigate(Routes.symptomFormRoute(null)) },
+                onEdit = { nid -> navController.navigate(Routes.symptomFormRoute(nid)) }
+            )
+        }
+
+        composable(
+            route = Routes.SYMPTOM_FORM_ROUTE,
+            arguments = listOf(
+                navArgument("nid") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                }
+            )
+        ) { backStackEntry ->
+            val nid = backStackEntry.arguments?.getLong("nid") ?: -1L
+            val noteId = if (nid == -1L) null else nid
+
+            SymptomFormScreen(
+                viewModel = symptomViewModel,
+                noteId = noteId,
+                onBack = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.NOTIF_SETTINGS) {
+            NotificationSettingsScreen(
+                viewModel = notifSettingsViewModel,
                 onBack = { navController.popBackStack() }
             )
         }
