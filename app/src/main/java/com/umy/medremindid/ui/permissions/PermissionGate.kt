@@ -62,7 +62,6 @@ fun PermissionGate(
     var skipped by rememberSaveable { mutableStateOf(false) }
     var notifRequestedOnce by rememberSaveable { mutableStateOf(false) }
 
-    // Menggunakan mutableStateOf agar bisa diupdate manual
     var notifGranted by remember {
         mutableStateOf(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -87,7 +86,6 @@ fun PermissionGate(
         )
     }
 
-    // Update status saat kembali ke aplikasi (Resume)
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -130,7 +128,6 @@ fun PermissionGate(
     val settingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        // Status akan diupdate oleh LifecycleObserver (ON_RESUME)
     }
 
     if (!shouldShowGate) {
