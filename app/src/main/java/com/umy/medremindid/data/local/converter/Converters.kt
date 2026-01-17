@@ -1,11 +1,10 @@
 package com.umy.medremindid.data.local.converter
 
 import androidx.room.TypeConverter
+import com.umy.medremindid.data.local.entity.AdherenceStatus
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-
-enum class AdherenceStatus { TAKEN, MISSED, SKIPPED }
 
 class Converters {
 
@@ -28,8 +27,9 @@ class Converters {
     fun longToInstant(value: Long?): Instant? = value?.let(Instant::ofEpochMilli)
 
     @TypeConverter
-    fun statusToString(value: AdherenceStatus?): String? = value?.name
+    fun adherenceStatusToString(value: AdherenceStatus?): String? = value?.name
 
     @TypeConverter
-    fun stringToStatus(value: String?): AdherenceStatus? = value?.let(AdherenceStatus::valueOf)
+    fun stringToAdherenceStatus(value: String?): AdherenceStatus? =
+        value?.let(AdherenceStatus::valueOf)
 }
