@@ -8,19 +8,13 @@ import android.os.Build
 import com.umy.medremindid.data.local.entity.MedicationScheduleEntity
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
+import java.time.LocalTime
 
 object ReminderScheduler {
 
     fun scheduleNextForSchedule(context: Context, schedule: MedicationScheduleEntity) {
-        val userId = schedule.userId
-        val scheduleId = schedule.scheduleId
-
-        if (!schedule.isActive) {
-            cancelForSchedule(context, userId, scheduleId)
-            return
-        }
+        if (!schedule.isActive) return
 
         val now = LocalDateTime.now()
         val next = computeNextOccurrence(
@@ -29,19 +23,23 @@ object ReminderScheduler {
             endDate = schedule.endDate,
             timeOfDay = schedule.timeOfDay
         ) ?: run {
-            cancelForSchedule(context, userId, scheduleId)
+            cancelForSchedule(context, schedule.userId, schedule.scheduleId)
             return
         }
 
-        val nextMillis = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val nextMillis = next
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+
         val plannedMillis = nextMillis
 
         val pi = pendingIntentForRemind(
             context = context,
-            userId = userId,
-            scheduleId = scheduleId,
+            userId = schedule.userId,
+            scheduleId = schedule.scheduleId,
             plannedMillis = plannedMillis,
-            requestCode = requestCodeMain(userId, scheduleId)
+            requestCode = requestCodeMain(schedule.userId, schedule.scheduleId)
         )
 
         setAlarm(context, nextMillis, pi)
@@ -61,7 +59,7 @@ object ReminderScheduler {
             userId = userId,
             scheduleId = scheduleId,
             plannedMillis = plannedMillis,
-            requestCode = requestCodeMain(userId, scheduleId)
+            requestCode = requestCodeSnooze(userId, scheduleId, plannedMillis)
         )
 
         setAlarm(context, triggerAt, pi)
@@ -131,8 +129,6 @@ object ReminderScheduler {
     private fun setAlarm(context: Context, triggerAtMillis: Long, pi: PendingIntent) {
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-        alarm.cancel(pi)
-
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (!alarm.canScheduleExactAlarms()) {
@@ -153,4 +149,7 @@ object ReminderScheduler {
 
     private fun requestCodeMain(userId: Long, scheduleId: Long): Int =
         "REMIND|$userId|$scheduleId".hashCode()
+
+    private fun requestCodeSnooze(userId: Long, scheduleId: Long, plannedMillis: Long): Int =
+        "SNOOZE|$userId|$scheduleId|$plannedMillis".hashCode()
 }
