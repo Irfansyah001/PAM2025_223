@@ -10,8 +10,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.umy.medremindid.data.session.SessionManager
+import com.umy.medremindid.ui.adherence.AdherenceViewModel
 import com.umy.medremindid.ui.auth.AuthViewModel
 import com.umy.medremindid.ui.schedule.MedicationScheduleViewModel
+import com.umy.medremindid.ui.screens.AdherenceHistoryScreen
+import com.umy.medremindid.ui.screens.AdherenceSummaryScreen
 import com.umy.medremindid.ui.screens.HomeScreen
 import com.umy.medremindid.ui.screens.LoginScreen
 import com.umy.medremindid.ui.screens.RegisterScreen
@@ -24,7 +27,8 @@ fun AppNavHost(
     navController: NavHostController,
     session: SessionManager,
     authViewModel: AuthViewModel,
-    scheduleViewModel: MedicationScheduleViewModel
+    scheduleViewModel: MedicationScheduleViewModel,
+    adherenceViewModel: AdherenceViewModel
 ) {
     NavHost(
         navController = navController,
@@ -69,6 +73,8 @@ fun AppNavHost(
         composable(Routes.HOME) {
             HomeScreen(
                 onGoSchedules = { navController.navigate(Routes.SCHEDULE_LIST) },
+                onGoAdherenceHistory = { navController.navigate(Routes.ADHERENCE_HISTORY) },
+                onGoAdherenceSummary = { navController.navigate(Routes.ADHERENCE_SUMMARY) },
                 onLogout = {
                     authViewModel.logout {
                         navController.navigate(Routes.LOGIN) {
@@ -104,7 +110,21 @@ fun AppNavHost(
                 viewModel = scheduleViewModel,
                 scheduleId = scheduleId,
                 onBack = { navController.popBackStack() },
-                onSaved = { navController.popBackStack() }
+                onSaved = { navController.popBackStack(Routes.SCHEDULE_LIST, false) }
+            )
+        }
+
+        composable(Routes.ADHERENCE_HISTORY) {
+            AdherenceHistoryScreen(
+                viewModel = adherenceViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.ADHERENCE_SUMMARY) {
+            AdherenceSummaryScreen(
+                viewModel = adherenceViewModel,
+                onBack = { navController.popBackStack() }
             )
         }
     }
