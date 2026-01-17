@@ -22,53 +22,42 @@ class MedicationScheduleRepository(
     suspend fun getById(userId: Long, scheduleId: Long): MedicationScheduleEntity? =
         dao.getById(userId, scheduleId)
 
-    /**
-     * UPSERT yang aman untuk SRS:
-     * - Selalu paksa userId sesuai sesi (ownership tidak boleh kebalik).
-     * - createdAt hanya di-set ulang saat insert baru (scheduleId == 0).
-     * - updatedAt selalu di-set sekarang.
-     */
-    suspend fun upsertForUser(userId: Long, entity: MedicationScheduleEntity) {
+    suspend fun countActiveAtTime(
+        userId: Long,
+        timeOfDay: LocalTime,
+        excludeScheduleId: Long? = null
+    ): Int {
+        return dao.countActiveAtTime(userId, timeOfDay, excludeScheduleId)
+    }
+
+    suspend fun upsert(entity: MedicationScheduleEntity): Long {
         val now = Instant.now()
 
         val fixed = if (entity.scheduleId == 0L) {
             entity.copy(
-                userId = userId,
                 createdAt = now,
                 updatedAt = now
             )
         } else {
+            val existing = dao.getById(entity.userId, entity.scheduleId)
             entity.copy(
-                userId = userId,
+                createdAt = existing?.createdAt ?: entity.createdAt,
                 updatedAt = now
             )
         }
 
-        dao.upsert(fixed)
+        return dao.upsert(fixed)
     }
 
-    suspend fun deleteById(userId: Long, scheduleId: Long) {
+    suspend fun deleteById(userId: Long, scheduleId: Long): Int =
         dao.deleteById(userId, scheduleId)
-    }
 
-    suspend fun setActive(userId: Long, scheduleId: Long, active: Boolean) {
-        dao.setActive(
+    suspend fun setActive(userId: Long, scheduleId: Long, active: Boolean): Int {
+        return dao.setActive(
             userId = userId,
             scheduleId = scheduleId,
             active = active,
             updatedAt = Instant.now()
         )
-    }
-
-    /**
-     * Opsional tapi relevan untuk validasi jadwal sederhana:
-     * apakah ada jadwal aktif di timeOfDay yang sama.
-     */
-    suspend fun hasActiveAtTime(
-        userId: Long,
-        timeOfDay: LocalTime,
-        excludeScheduleId: Long? = null
-    ): Boolean {
-        return dao.countActiveAtTime(userId, timeOfDay, excludeScheduleId) > 0
     }
 }
