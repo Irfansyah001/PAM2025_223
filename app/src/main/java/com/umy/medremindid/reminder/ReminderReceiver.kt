@@ -3,10 +3,13 @@ package com.umy.medremindid.reminder
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -15,6 +18,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.umy.medremindid.MainActivity
 import com.umy.medremindid.R
 import com.umy.medremindid.data.local.db.AppDatabase
 import com.umy.medremindid.data.local.entity.NotificationPreferenceEntity
@@ -64,6 +68,7 @@ class ReminderReceiver : BroadcastReceiver() {
             ReminderConstants.ACTION_REMIND -> {
                 val schedule = scheduleDao.getById(userId, scheduleId) ?: run {
                     ReminderScheduler.cancelForSchedule(context, userId, scheduleId)
+                    cancelMissedByTag(context, userId, scheduleId)
                     return
                 }
 
@@ -104,10 +109,12 @@ class ReminderReceiver : BroadcastReceiver() {
                     return
                 }
 
-                ensureReminderChannel(context)
+                val channelId = ensureReminderChannel(context, pref)
 
                 showReminderNotification(
                     context = context,
+                    channelId = channelId,
+                    pref = pref,
                     userId = userId,
                     scheduleId = scheduleId,
                     plannedMillis = effectivePlannedMillis,
@@ -122,6 +129,9 @@ class ReminderReceiver : BroadcastReceiver() {
                     plannedMillis = effectivePlannedMillis,
                     delayMinutes = ReminderConstants.DEFAULT_GRACE_MINUTES
                 )
+
+                // Stabil: selalu jadwalkan pengingat berikutnya walaupun user mengabaikan notifikasi
+                ReminderScheduler.scheduleNextForSchedule(context, schedule)
             }
 
             ReminderConstants.ACTION_TAKEN -> {
@@ -131,9 +141,6 @@ class ReminderReceiver : BroadcastReceiver() {
                 adherenceRepo.markTaken(userId, scheduleId, Instant.ofEpochMilli(plannedMillis))
                 cancelMissedUnique(context, userId, scheduleId, plannedMillis)
                 dismissNotification(context, scheduleId, plannedMillis)
-
-                val schedule = scheduleDao.getById(userId, scheduleId) ?: return
-                ReminderScheduler.scheduleNextForSchedule(context, schedule)
             }
 
             ReminderConstants.ACTION_SKIPPED -> {
@@ -143,9 +150,6 @@ class ReminderReceiver : BroadcastReceiver() {
                 adherenceRepo.markSkipped(userId, scheduleId, Instant.ofEpochMilli(plannedMillis))
                 cancelMissedUnique(context, userId, scheduleId, plannedMillis)
                 dismissNotification(context, scheduleId, plannedMillis)
-
-                val schedule = scheduleDao.getById(userId, scheduleId) ?: return
-                ReminderScheduler.scheduleNextForSchedule(context, schedule)
             }
 
             ReminderConstants.ACTION_SNOOZE -> {
@@ -177,6 +181,8 @@ class ReminderReceiver : BroadcastReceiver() {
 
     private fun showReminderNotification(
         context: Context,
+        channelId: String,
+        pref: NotificationPreferenceEntity,
         userId: Long,
         scheduleId: Long,
         plannedMillis: Long,
@@ -194,16 +200,36 @@ class ReminderReceiver : BroadcastReceiver() {
         val snoozePI =
             PendingIntents.action(context, ReminderConstants.ACTION_SNOOZE, userId, scheduleId, plannedMillis)
 
-        val builder = NotificationCompat.Builder(context, ReminderConstants.CHANNEL_ID_REMINDERS)
+        val openAppIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentPI = PendingIntent.getActivity(
+            context,
+            ("OPEN|$scheduleId|$plannedMillis").hashCode(),
+            openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .addAction(0, "Taken", takenPI)
-            .addAction(0, "Skip", skipPI)
-            .addAction(0, "Snooze", snoozePI)
+            .setContentIntent(contentPI)
+            .addAction(0, "Sudah", takenPI)
+            .addAction(0, "Lewati", skipPI)
+            .addAction(0, "Tunda", snoozePI)
+
+        // Best-effort untuk Android < 8 (karena Android 8+ mengikuti channel)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            if (pref.allowVibration) {
+                builder.setVibrate(longArrayOf(0, 250, 250, 250))
+            }
+            val soundUri = pref.ringtoneUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
+            if (soundUri != null) builder.setSound(soundUri)
+        }
 
         try {
             NotificationManagerCompat.from(context).notify(notifId, builder.build())
@@ -222,19 +248,34 @@ class ReminderReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun ensureReminderChannel(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    private fun ensureReminderChannel(context: Context, pref: NotificationPreferenceEntity): String {
+        val channelId = ReminderConstants.channelId(pref.allowVibration, pref.ringtoneUri)
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return channelId
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val existing = nm.getNotificationChannel(ReminderConstants.CHANNEL_ID_REMINDERS)
-        if (existing != null) return
+        val existing = nm.getNotificationChannel(channelId)
+        if (existing != null) return channelId
 
         val channel = NotificationChannel(
-            ReminderConstants.CHANNEL_ID_REMINDERS,
+            channelId,
             ReminderConstants.CHANNEL_NAME_REMINDERS,
             NotificationManager.IMPORTANCE_HIGH
         )
+
+        channel.enableVibration(pref.allowVibration)
+
+        val soundUri = pref.ringtoneUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        if (soundUri != null) {
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            channel.setSound(soundUri, attrs)
+        }
+
         nm.createNotificationChannel(channel)
+        return channelId
     }
 
     private fun enqueueMissedWorker(
@@ -316,7 +357,7 @@ private object PendingIntents {
         userId: Long,
         scheduleId: Long,
         plannedMillis: Long
-    ): android.app.PendingIntent {
+    ): PendingIntent {
         val intent = Intent(context, ReminderReceiver::class.java).apply {
             this.action = action
             putExtra(ReminderConstants.EXTRA_USER_ID, userId)
@@ -325,11 +366,11 @@ private object PendingIntents {
         }
 
         val requestCode = ("A|$action|$userId|$scheduleId|$plannedMillis").hashCode()
-        return android.app.PendingIntent.getBroadcast(
+        return PendingIntent.getBroadcast(
             context,
             requestCode,
             intent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
 }
