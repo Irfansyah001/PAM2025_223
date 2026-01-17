@@ -7,11 +7,12 @@ object Routes {
     const val HOME = "home"
 
     const val SCHEDULE_LIST = "schedule_list"
-    const val SCHEDULE_FORM = "schedule_form"
     const val SCHEDULE_FORM_ROUTE = "schedule_form?sid={sid}"
+    const val ADHERENCE_HISTORY = "adherence_history"
+    const val ADHERENCE_SUMMARY = "adherence_summary"
+    const val NOTIF_PREFS = "notif_prefs"
 
     fun scheduleFormRoute(scheduleId: Long? = null): String {
-        return if (scheduleId == null) SCHEDULE_FORM
-        else "schedule_form?sid=$scheduleId"
+        return "schedule_form?sid=${scheduleId ?: -1L}"
     }
 }
