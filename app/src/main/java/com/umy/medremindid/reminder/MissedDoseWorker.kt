@@ -31,18 +31,12 @@ class MissedDoseWorker(
             val scheduleDao = db.medicationScheduleDao()
             val schedule = scheduleDao.getById(userId, scheduleId)
 
-            if (schedule == null) {
-                ReminderScheduler.cancelForSchedule(applicationContext, userId, scheduleId)
-                return Result.success()
-            }
-
-            if (!schedule.isActive) {
+            if (schedule == null || !schedule.isActive) {
                 ReminderScheduler.cancelForSchedule(applicationContext, userId, scheduleId)
                 return Result.success()
             }
 
             ReminderScheduler.scheduleNextForSchedule(applicationContext, schedule)
-
             Result.success()
         } catch (_: IllegalArgumentException) {
             Result.success()

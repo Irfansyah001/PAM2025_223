@@ -8,8 +8,8 @@ import android.os.Build
 import com.umy.medremindid.data.local.entity.MedicationScheduleEntity
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.time.LocalTime
+import java.time.ZoneId
 
 object ReminderScheduler {
 
@@ -27,11 +27,7 @@ object ReminderScheduler {
             return
         }
 
-        val nextMillis = next
-            .atZone(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
-
+        val nextMillis = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val plannedMillis = nextMillis
 
         val pi = pendingIntentForRemind(
@@ -86,7 +82,6 @@ object ReminderScheduler {
         endDate: LocalDate?,
         timeOfDay: LocalTime
     ): LocalDateTime? {
-
         val startCandidate = LocalDateTime.of(startDate, timeOfDay)
 
         val base = if (now.isBefore(startCandidate)) {
